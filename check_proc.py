@@ -4,7 +4,7 @@ import json
 import time
 import os
 
-INTERVAL = 5  # SECONDS! Use something slightly more sane for production!
+INTERVAL = 300  # SECONDS! Use something slightly more sane for production!
 PD_URL = 'https://events.pagerduty.com/v2/enqueue'
 HOST = socket.getfqdn()  # Were this to change, it would require the script be restarted
 
