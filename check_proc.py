@@ -32,10 +32,10 @@ def trigger(dedup_key):
         "payload": {
             "severity": "critical",
             "source": HOST,
-            "summary": f"[TEST] {PROC_NAME} has stopped running on {HOST}",
+            "summary": f"{PROC_NAME} has stopped running on {HOST}",
             "custom_details": {
-                "Info": (
-                    f"{PROC_NAME} has stopped running on {HOST} within the last {INTERVAL} seconds. "
+                "info": (
+                    f"{PROC_NAME} was not running on {HOST} within the last {INTERVAL} seconds. "
                     "Please reach out to service owner for troubleshooting.")
             }
         }
@@ -46,8 +46,7 @@ def trigger(dedup_key):
 
     try:
         response = requests.post(PD_URL, data=json.dumps(payload))
-        print(response.status_code)
-        print(response.text)
+        print(response.status_code, response.text)
         return response.json()["dedup_key"]
 
     except requests.exceptions.RequestException as e:
@@ -64,8 +63,7 @@ def resolve(dedup_key):
 
     try:
         response = requests.post(PD_URL, data=json.dumps(payload))
-        print(response.status_code)
-        print(response.text)
+        print(response.status_code, response.text)
         return True
 
     except requests.exceptions.RequestException as e:
