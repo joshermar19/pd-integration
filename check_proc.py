@@ -103,7 +103,7 @@ def main():
         else:
             print(f'{PROC_NAME} appears to be running and incident is untriggered.')
 
-        print()  # Space is the essence of Zen...
+        print(f'Checking again in {INTERVAL} seconds...')
 
         time.sleep(INTERVAL)
 
