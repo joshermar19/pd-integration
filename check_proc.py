@@ -5,7 +5,7 @@ import json
 import time
 import os
 
-INTERVAL = 300  # SECONDS! Use something slightly more sane for production!
+INTERVAL = 300  # SECONDS
 PD_URL = 'https://events.pagerduty.com/v2/enqueue'
 HOST = socket.getfqdn()  # Were this to change, it would require the script be restarted
 
@@ -41,7 +41,7 @@ def trigger(dedup_key):
         }
     }
 
-    if dedup_key:  # If not, that means this is the first trigger
+    if dedup_key:  # If not, this is the first trigger and this should not be added to payload
         payload["dedup_key"] = dedup_key
 
     try:
