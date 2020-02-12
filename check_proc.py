@@ -1,3 +1,4 @@
+import subprocess
 import requests
 import socket
 import json
@@ -12,10 +13,16 @@ PROC_NAME = os.environ['PROC_NAME']
 INT_KEY = os.environ['INT_KEY']
 
 
-def check_proc_running(process_name):
-    # Remember, we are using the "exit code/return status", not the stdout from this cmd.
-    # The inversion is done because 0 means "success", and 1 means no process found.
-    return not os.system(f'pgrep {process_name} &> /dev/null')
+def check_proc_running(proc_name):
+    stdout = subprocess.run(['pgrep', proc_name], stdout=subprocess.PIPE).stdout
+
+    if stdout:
+        pids_list = stdout.decode('utf-8').strip().split('\n')
+        print(f'Found {proc_name} with PIDs: ' + ''.join(pids_list))
+    else:
+        print(f'No running PIDs found for {proc_name}')
+
+    return bool(stdout)  # Simple enough. Empty string means its not running.
 
 
 def trigger(dedup_key):
