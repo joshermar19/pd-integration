@@ -1,28 +1,62 @@
+from apscheduler.schedulers.blocking import BlockingScheduler
+from pytz import timezone
 import subprocess
 import requests
 import socket
 import json
-import time
 import os
 
 INTERVAL = 300  # SECONDS
 PD_URL = 'https://events.pagerduty.com/v2/enqueue'
 HOST = socket.getfqdn()  # Were this to change, it would require the script be restarted
+TZ = timezone('America/Los_Angeles')
 
 PROC_NAME = os.environ['PROC_NAME']
 INT_KEY = os.environ['INT_KEY']
 
+dedup_key = None  # This also keeps track of whether or not an incident was triggered successfully
 
-def check_proc_running(proc_name):
-    stdout = subprocess.run(['pgrep', proc_name], stdout=subprocess.PIPE).stdout
 
-    if stdout:
-        pids_list = stdout.decode('utf-8').strip().split('\n')
-        print(f'Found {proc_name} with PIDs: ' + ''.join(pids_list))
-    else:
-        print(f'No running PIDs found for {proc_name}')
+def monitor_tester():
+    trigg_payload = {
+        "event_action": "trigger",
+        "routing_key": INT_KEY,
+        "payload": {
+            "severity": "info",
+            "source": HOST,
+            "summary": f"[INTEGRATION TEST] process monitor for {PROC_NAME} on {HOST}",  # MAKE ME AN f-string!
+            "custom_details": {
+                "info": (
+                    f"This is an integration test for the monitoring of {PROC_NAME} on {HOST}. "  # MAKE ME AN f-string!
+                    "It will trigger once when the integration comes online and subsequently "
+                    "every first day of the month at 17:00.")
+            }
+        }
+    }
 
-    return bool(stdout)  # Simple enough. Empty string means its not running.
+    try:
+        response = requests.post(PD_URL, data=json.dumps(trigg_payload))
+        dedup_key = response.json()["dedup_key"]
+        print(response.status_code, f'Trigerred INTEGRATION TEST {dedup_key}')
+
+    except requests.exceptions.RequestException as e:
+        print(e, 'Unable to trigger check!')
+        return  # No point in continuing if this is the case
+
+    ack_payload = {
+        "event_action": "acknowledge",
+        "routing_key": INT_KEY,
+        "dedup_key": dedup_key
+    }
+
+    try:
+        response = requests.post(PD_URL, data=json.dumps(ack_payload))
+        print(response.status_code, f'Acknowledged {dedup_key}')
+
+    except requests.exceptions.RequestException as e:
+        print(e, 'Unable to ack check!')
+
+    print()  # Space is the essence of Zen
 
 
 def trigger(dedup_key):
@@ -41,16 +75,17 @@ def trigger(dedup_key):
         }
     }
 
-    if dedup_key:  # If not, this is the first trigger and this should not be added to payload
+    if dedup_key:  # If not, this is the first trigger and no dedup_key should be sent
         payload["dedup_key"] = dedup_key
 
     try:
         response = requests.post(PD_URL, data=json.dumps(payload))
-        print(response.status_code, response.text)
-        return response.json()["dedup_key"]
+        current_dedup = response.json()["dedup_key"]
+        print(response.status_code, f'Triggered/retriggered with {current_dedup}')
+        return current_dedup
 
     except requests.exceptions.RequestException as e:
-        print(e, 'Unable to trigger incident!')
+        print(e, 'Unable to trigger/retrigger incident!')
         return None
 
 
@@ -63,7 +98,7 @@ def resolve(dedup_key):
 
     try:
         response = requests.post(PD_URL, data=json.dumps(payload))
-        print(response.status_code, response.text)
+        print(response.status_code, f'Resolved {dedup_key}')
         return True
 
     except requests.exceptions.RequestException as e:
@@ -71,40 +106,61 @@ def resolve(dedup_key):
         return False
 
 
-def main():
-    dedup_key = None  # This also keeps track of whether or not the incident has triggered successfully
+def check_proc_running(proc_name):
+    stdout = subprocess.run(['pgrep', proc_name], stdout=subprocess.PIPE).stdout
 
-    while True:
-        running = check_proc_running(PROC_NAME)
+    if stdout:
+        pids_list = stdout.decode('utf-8').strip().split('\n')
+        print(f'Found {proc_name} with PID(s): ' + ', '.join(pids_list))
+    else:
+        print(f'No PIDs found for {proc_name}')
 
-        # If it's NOT running, keep triggering EVERY time
-        if not running:
-            print(f'{PROC_NAME} is NOT running. Triggering/Retriggering incident.')
+    return bool(stdout)  # Simple enough. Empty string means its not running.
 
-            # None here would mean that there was a connection problem
-            new_dedup = trigger(dedup_key)
 
-            # A new dedup also means a successful request
-            if new_dedup:
-                dedup_key = new_dedup
+def monitor():
+    global dedup_key
 
-        # Presence of dedup key means that it was triggerred and has not yet been resolved
-        elif dedup_key:
-            print(f'{PROC_NAME} is running again. Resolving incident.')
+    running = check_proc_running(PROC_NAME)
 
-            resolved = resolve(dedup_key)
+    # If it's NOT running, go ahead and trigger/retrigger
+    if not running:
+        print(f'{PROC_NAME} is NOT running. Attempting trigger/retrigger...')
 
-            # This is important because if it is not able to resolve, try again next time around
-            if resolved:
-                dedup_key = None
+        new_dedup = trigger(dedup_key)
 
-        else:
-            print(f'{PROC_NAME} appears to be running and incident is untriggered.')
+        # If a new dedup is provided, that's the "current dedup"
+        dedup_key = new_dedup or dedup_key
 
-        print(f'Checking again in {INTERVAL} seconds...')
+    # If it is running and dedup_key is set, that means it needs to be resolved
+    elif dedup_key:
+        print(f'{PROC_NAME} is running again. Attempting to resolve incident...')
 
-        time.sleep(INTERVAL)
+        resolved = resolve(dedup_key)
+
+        # If not able to resolve (connection err), try again next time around
+        if resolved:
+            dedup_key = None
+
+    else:
+        print(f'{PROC_NAME} appears to be running and incident is untriggered')
+
+    print(f'Checking again in {INTERVAL} seconds.\n')
+
+
+def scheduler():
+    sched = BlockingScheduler()
+
+    sched.add_job(monitor_tester, 'cron', day='01', hour='17', timezone=TZ)
+    sched.add_job(monitor, 'interval', seconds=INTERVAL)
+
+    print('Starting scheduler')
+    sched.start()
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        monitor_tester()  # Initial "gauge sweep"
+        scheduler()
+    except KeyboardInterrupt:
+        print("Ending Scheduler")
