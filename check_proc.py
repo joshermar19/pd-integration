@@ -26,6 +26,8 @@ logging.basicConfig(
 
 
 def monitor_tester():
+    logging.info('Commencing INTEGRATION TEST...')
+
     trigg_payload = {
         "event_action": "trigger",
         "routing_key": INT_KEY,
@@ -45,10 +47,10 @@ def monitor_tester():
     try:
         response = requests.post(PD_URL, data=json.dumps(trigg_payload))
         dedup_key = response.json()["dedup_key"]
-        logging.info(response.status_code, f'Trigerred INTEGRATION TEST {dedup_key}')
+        logging.info(f'{response.status_code} Successfully triggered INTEGRATION TEST with dedup_key: {dedup_key}')
 
     except requests.exceptions.RequestException as e:
-        logging.error(e, 'Unable to trigger check!')
+        logging.error(f'Unable to trigger check! {e}')
         return  # No point in continuing if this is the case
 
     ack_payload = {
@@ -59,10 +61,10 @@ def monitor_tester():
 
     try:
         response = requests.post(PD_URL, data=json.dumps(ack_payload))
-        logging.info(response.status_code, f'Acknowledged {dedup_key}')
+        logging.info(f'{response.status_code} Successfully acknowledged incident with dedup_key: {dedup_key}')
 
     except requests.exceptions.RequestException as e:
-        logging.error(e, 'Unable to ack check!')
+        logging.error(f'Unable to ack check! {e}')
 
 
 def trigger(dedup_key):
@@ -87,11 +89,11 @@ def trigger(dedup_key):
     try:
         response = requests.post(PD_URL, data=json.dumps(payload))
         current_dedup = response.json()["dedup_key"]
-        logging.info(response.status_code, f'Triggered/retriggered with {current_dedup}')
+        logging.info(f'{response.status_code} Successfully triggered/retriggered with dedup_key {current_dedup}')
         return current_dedup
 
     except requests.exceptions.RequestException as e:
-        logging.error(e, 'Unable to trigger/retrigger incident!')
+        logging.error(f'Unable to trigger/retrigger incident! {e}')
         return None
 
 
@@ -104,11 +106,11 @@ def resolve(dedup_key):
 
     try:
         response = requests.post(PD_URL, data=json.dumps(payload))
-        logging.info(response.status_code, f'Resolved {dedup_key}')
+        logging.info(f'{response.status_code} Successfully resolved incident with dedup_key: {dedup_key}')
         return True
 
     except requests.exceptions.RequestException as e:
-        logging.error(e, 'Unable to resolve incident!')
+        logging.error(f'Unable to resolve incident! {e}')
         return False
 
 
@@ -125,9 +127,11 @@ def check_proc_running(proc_name):
 
 
 def monitor():
-    global dedup_key
+    logging.info(f'Checking for PID(s) for {PROC_NAME}.')
 
     running = check_proc_running(PROC_NAME)
+
+    global dedup_key
 
     # If it's NOT running, go ahead and trigger/retrigger
     if not running:
@@ -149,9 +153,7 @@ def monitor():
             dedup_key = None
 
     else:
-        logging.info(f'{PROC_NAME} appears to be running and incident is untriggered')
-
-    logging.info(f'Checking again in {INTERVAL} seconds.\n')
+        logging.info(f'{PROC_NAME} appears to be running and incident is untriggered.')
 
 
 def scheduler():
@@ -160,13 +162,13 @@ def scheduler():
     sched.add_job(monitor_tester, 'cron', day='01', hour='17', timezone=TZ)
     sched.add_job(monitor, 'interval', seconds=INTERVAL)
 
-    logging.info('Starting scheduler')
     sched.start()
 
 
 if __name__ == '__main__':
     try:
-        monitor_tester()  # Initial "gauge sweep"
+        logging.info('Manually running monitor tester for first run "gauge sweep"')
+        monitor_tester()
         scheduler()
     except KeyboardInterrupt:
-        logging.info("Ending Scheduler")
+        logging.info("Manually exiting monitor. Goodbye!")
