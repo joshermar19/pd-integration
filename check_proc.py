@@ -25,8 +25,8 @@ logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s')
 
 
-def monitor_tester():
-    logging.info('Commencing INTEGRATION TEST...')
+def monitor_check():
+    logging.info('Commencing INTEGRATION CHECK...')
 
     trigg_payload = {
         "event_action": "trigger",
@@ -34,10 +34,10 @@ def monitor_tester():
         "payload": {
             "severity": "info",
             "source": HOST,
-            "summary": f"[INTEGRATION TEST] process monitor for {PROC_NAME} on {HOST}",
+            "summary": f"[INTEGRATION CHECK] process monitor for {PROC_NAME} on {HOST}",
             "custom_details": {
                 "info": (
-                    f"This is an integration test for the monitoring of {PROC_NAME} on {HOST}. "
+                    f"This is an integration check for the monitoring of {PROC_NAME} on {HOST}. "
                     "It will trigger once when the integration comes online and subsequently "
                     "every first day of the month at 17:00.")
             }
@@ -47,7 +47,7 @@ def monitor_tester():
     try:
         response = requests.post(PD_URL, data=json.dumps(trigg_payload))
         dedup_key = response.json()["dedup_key"]
-        logging.info(f'{response.status_code} Successfully triggered INTEGRATION TEST with dedup_key: {dedup_key}')
+        logging.info(f'{response.status_code} Successfully triggered INTEGRATION CHECK with dedup_key: {dedup_key}')
 
     except requests.exceptions.RequestException as e:
         logging.error(f'Unable to trigger check! {e}')
@@ -159,7 +159,7 @@ def monitor():
 def scheduler():
     sched = BlockingScheduler()
 
-    sched.add_job(monitor_tester, 'cron', day='01', hour='17', timezone=TZ)
+    sched.add_job(monitor_check, 'cron', day='01', hour='17', timezone=TZ)
     sched.add_job(monitor, 'interval', seconds=INTERVAL)
 
     sched.start()
@@ -167,8 +167,8 @@ def scheduler():
 
 if __name__ == '__main__':
     try:
-        logging.info('Manually running monitor tester for first run "gauge sweep"')
-        monitor_tester()
+        logging.info('Manually running integration check for first run "gauge sweep"')
+        monitor_check()
         scheduler()
     except KeyboardInterrupt:
         logging.info("Manually exiting monitor. Goodbye!")
