@@ -64,10 +64,10 @@ def get_trigger_payload(summary, info, severity="critical"):
 
 
 def monitor_check():
-    logging.info('Commencing integration check...')
+    logging.info('Triggering integration check')
 
     trigg_summary = "[INTEGRATION CHECK] process monitor for {PROC_NAME} on {instance_id}"
-    trigg_info = ("This is an integration check for the monitoring of {PROC_NAME} on {instance_id}. "
+    trigg_info = ("This is an integration check for the monitoring of {PROC_NAME} on EC2 instance {instance_id}. "
                   "It will trigger once when the integration comes online and subsequently "
                   "every first day of the month at 17:00.")
     trigg_payload = get_trigger_payload(trigg_summary, trigg_info, severity="info")  # Remember, "critical" severity is the default
@@ -97,7 +97,7 @@ def monitor_check():
 
 def trigger(dedup_key):
     trigg_summary = "{PROC_NAME} has stopped running on {instance_id}"
-    trigg_info = ("{PROC_NAME} was not running on {instance_id} within the last {INTERVAL} seconds. "
+    trigg_info = ("{PROC_NAME} was not running on EC2 instance {instance_id} within the last {INTERVAL} seconds. "
                   "Please reach out to service owner for troubleshooting.")
     trigg_payload = get_trigger_payload(trigg_summary, trigg_info)
 
@@ -145,7 +145,7 @@ def check_proc_running(proc_name):
 
 
 def monitor():
-    logging.info(f'Checking for PID(s) for {PROC_NAME}.')
+    logging.info(f'Checking if {PROC_NAME} is running')
 
     running = check_proc_running(PROC_NAME)
 
@@ -162,7 +162,7 @@ def monitor():
 
     # If it is running and dedup_key is set, that means it needs to be resolved
     elif dedup_key:
-        logging.info(f'{PROC_NAME} is running again. Attempting to resolve incident...')
+        logging.info(f'{PROC_NAME} is running again after a previous trigger. Attempting to resolve incident...')
 
         resolved = resolve(dedup_key)
 
@@ -171,7 +171,7 @@ def monitor():
             dedup_key = None
 
     else:
-        logging.info(f'{PROC_NAME} appears to be running and incident is untriggered.')
+        logging.info(f'{PROC_NAME} appears to be running and incident is untriggered. Doing nothing.')
 
 
 def scheduler():
@@ -185,8 +185,7 @@ def scheduler():
 
 if __name__ == '__main__':
     try:
-        logging.info('Manually running integration check for first run "gauge sweep"')
-        monitor_check()
+        monitor_check()  # Manually run integration check for first run "gauge sweep"
         scheduler()
     except KeyboardInterrupt:
         logging.info("Manually exiting monitor. Goodbye!")
