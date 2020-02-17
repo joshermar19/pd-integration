@@ -29,11 +29,11 @@ def _get_ec2_metadata(attribute):
         response = requests.get(url, timeout=2)
         if response.status_code != 200:
             logging.warning(f"{response.status_code} on {url}")
-            return None
+            return "unknown"
         return response.text
     except requests.exceptions.RequestException as e:
-        logging.warning(f"Could not read EC2 attribute {attribute} {e}")
-        return None
+        logging.warning(f"Could not get EC2 attribute {attribute} {e}")
+        return "unknown"
 
 
 def get_trigger_payload(summary, info, severity="critical"):
