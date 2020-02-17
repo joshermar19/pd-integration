@@ -78,7 +78,7 @@ def monitor_check():
         logging.info(f'{response.status_code} Successfully triggered INTEGRATION CHECK with dedup_key: {dedup_key}')
 
     except requests.exceptions.RequestException as e:
-        logging.error(f'Unable to trigger check! {e}')
+        logging.error(f'Unable to trigger integration check {e}')
         return  # No point in continuing if this is the case
 
     ack_payload = {
@@ -92,7 +92,7 @@ def monitor_check():
         logging.info(f'{response.status_code} Successfully acknowledged incident with dedup_key: {dedup_key}')
 
     except requests.exceptions.RequestException as e:
-        logging.error(f'Unable to ack check! {e}')
+        logging.error(f'Unable to ack integration check with dedup_key {dedup_key} {e}')
 
 
 def trigger(dedup_key):
@@ -107,11 +107,11 @@ def trigger(dedup_key):
     try:
         response = requests.post(PD_URL, data=json.dumps(trigg_payload))
         current_dedup = response.json()["dedup_key"]
-        logging.info(f'{response.status_code} Successfully triggered/retriggered with dedup_key {current_dedup}')
+        logging.info(f'{response.status_code} Successfully triggered/retriggered. Current dedup_key: {current_dedup}')
         return current_dedup
 
     except requests.exceptions.RequestException as e:
-        logging.error(f'Unable to trigger/retrigger incident! {e}')
+        logging.error(f'Unable to trigger/retrigger incident {e}')
         return None
 
 
@@ -128,7 +128,7 @@ def resolve(dedup_key):
         return True
 
     except requests.exceptions.RequestException as e:
-        logging.error(f'Unable to resolve incident! {e}')
+        logging.error(f'Unable to resolve incident with dedup_key {dedup_key} {e}')
         return False
 
 
@@ -137,9 +137,9 @@ def check_proc_running(proc_name):
 
     if stdout:
         pids_list = stdout.decode('utf-8').strip().split('\n')
-        logging.info(f'Found {proc_name} with PID(s): ' + ', '.join(pids_list))
+        logging.info(f'Matched substring "{proc_name}" with PID(s): ' + ', '.join(pids_list))
     else:
-        logging.info(f'No PIDs found for {proc_name}')
+        logging.info(f'No PIDs found for "{proc_name}"')
 
     return bool(stdout)  # Simple enough. Empty string means its not running.
 
